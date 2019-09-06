@@ -1,2 +1,2 @@
 # NOSQL
-Repository with .txt files containing import commands for NoSQL tools.
+Repository with .txt files containing important commands for NoSQL tools.
