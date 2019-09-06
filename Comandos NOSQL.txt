@@ -1,0 +1,113 @@
+COMANDOS SSH:
+
+## na jenala de console da conexão SSH: inicia o HBase Shell
+
+hbase shell
+
+
+## lista os arquivos da pasta
+
+hdfs dfs -ls /nomepasta
+
+
+## entra no command line do Hive
+
+hive
+
+
+## o comando abaixo transforma os dados do arquivo stocks.txt (com colunas delimitadas por tabs), localizado no Azure Storage, para o formato HBase StoreFile, com colunas "HBASE_ROW_KEY", "Closing:Price" e "Current:Price"
+
+hbase org.apache.hadoop.hbase.mapreduce.ImportTsv -Dimporttsv.columns="HBASE_ROW_KEY,Closing:Price,Current:Price" -Dimporttsv.bulk.output="/data/storefile" Stocks /data/stocks.txt
+
+
+## carrega os dados transformados anteriormente na tabela Stocks (considerando que a tabela já foi criada anteriormente)
+
+hbase org.apache.hadoop.hbase.mapreduce.LoadIncrementalHFiles /data/storefile Stocks
+
+
+##  checar a pasta (version-specific) onde as aplicações do Hadoop estão
+
+ls /usr/hdp
+
+
+## abrir SQLLine (phoenix) (substituir "version" pelo nome mostrados através do comando acima) (substituir "zookeeper" pelo nome do node do zookeeper ativo no cluster)
+
+/usr/hdp/version/phoenix/bin/sqlline.py zookeeper:2181:/hbase-unsecure
+
+
+NO HBASE SHELL:
+
+## cria tabela chamada ‘Stocks’, com família de colunas ‘Current’ e ‘Closing’
+
+create ‘Stocks’, ‘Current’, ‘Closing’
+
+
+## insere o valor 97.3 na tabela Stocks, na linha com chave ABC, na família de colunas ‘Current’, na coluna ‘Price’. Se essa coluna já possuir um valor, ele será atualizado com o novo valor
+
+put ‘Stocks’, ‘ABC’, ‘Current:Price’, 97.3
+
+
+## retorna todas as linhas da tabela Stocks
+
+scan ‘Stocks’
+
+
+## retorna todos valores da linha com chave ABC, da tabela Stocks
+
+get ‘Stocks’, ‘ABC’
+
+
+## ‘nnn’ é o valor do timestamp. Aqui estamos retornando os valores da linha ABC (tabela Stocks), antes da atualização de valor (antes do último timestamp)
+
+get ‘Stocks’, ‘ABC’, {TIMERANGE => [0, nnn-1]}
+
+
+## deleta a coluna ‘Status’ da família de colunas ‘Current’, da linha de chave ABC, da tabela Stocks
+
+delete ‘Stocks’, ‘ABC’, ‘Current:Status’
+
+
+## retorna os valores somente da coluna ‘Current: Prices’, da tabela Stocks
+
+scan ‘Stocks’, {COLUMNS => ‘Current:Price’}
+
+
+## retorna somente as 3 primeiras linhas da tabela ‘Stocks’
+
+scan ‘Stocks’, {LIMIT => 3}
+
+
+## retorna as linhas com chaves que começam com letras entre C e H, da tabela Stocks
+
+scan ‘Stocks’, {STARTROW => ‘C’, STOPROW => ‘H’}
+
+
+## sai do shell do hbase e volta para o hadoop command line (SSH)
+
+quit
+
+
+NO HIVE SHELL:
+
+## cria uma tabela no Hive, chamada StockPrices baseada na tabela Stocks do HBase (considerando que esta tabela já tenha sido criada anteriormente), com colunas Stock, ClosingPrice e CurrentPrice
+
+CREATE EXTERNAL TABLE StockPrices (Stock STRING, ClosingPrice FLOAT, CurrentPrice FLOAT) STORED BY 'org.apache.hadoop.hive.hbase.HBaseStorageHandler' WITH SERDEPROPERTIES ('hbase.columns.mapping' = ':key,Closing:Price,Current:Price') TBLPROPERTIES ('hbase.table.name' = 'Stocks');  - cria tabela no Hive
+
+
+## select query na tabela do Hive, puxando os valores das colunas Stock, CurrentPrice e ClosingPrice e criando uma nova coluna com o IF Statement, chamada Status
+
+SELECT Stock, CurrentPrice, ClosingPrice, IF(CurrentPrice > ClosingPrice, 'Up',IF (CurrentPrice < ClosingPrice, 'Down', '-')) AS Status FROM StockPrices ORDER BY Stock; - select di hive, criando coluna ‘Status’ com IF
+
+
+NO SQLLINE:
+
+## criar visão SQL baseada na tabela Stocks do HBase
+
+CREATE VIEW "Stocks" (StockCode VARCHAR PRIMARY KEY, "Closing"."Price" VARCHAR, "Current"."Price" VARCHAR);
+
+
+## select query do visão criada acima
+
+SELECT StockCode, "Current"."Price" FROM "Stocks" WHERE "Current"."Price" > "Closing"."Price";
+
+
